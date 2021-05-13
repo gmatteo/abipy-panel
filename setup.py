@@ -29,7 +29,8 @@ setup_args = dict(
     packages=find_packages(),
     python_requires=">=3.7",
     install_requires=[
-        "abipy" "ipywidgets>=7.0.0",
+        "abipy",
+        "ipywidgets>=7.0.0",
     ],
     extras_require={
         "docs": ["mkdocs", "mkdocs-material"],
