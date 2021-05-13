@@ -276,3 +276,395 @@ class PHBandsPanel(widgets.VBox):
         self._button.disabled = True
         self.update()
         self._button.disabled = False
+
+
+class BECOptions(widgets.VBox):
+    def __init__(self):
+        super().__init__()
+
+        self._header = widgets.HTML("<h1>Born effective charges options</h1>")
+
+        self._asr = widgets.Dropdown(
+            description="asr:",
+            options=["0", "1", "2"],
+            value="2",
+        )
+
+        self._chneut = widgets.Dropdown(
+            description="chneut:",
+            options=["0", "1", "2"],
+            value="1",
+        )
+
+        self._dipdip = widgets.Dropdown(
+            description="dipdip:",
+            options=["0", "1", "2"],
+            value="1",
+        )
+
+        # Phonon linewidth in eV
+        self._gamma_ev = widgets.BoundedFloatText(
+            description="gamma_ev:", value=1e-4, min=1e-20
+        )
+
+        self.children = [
+            self._header,
+            self._asr,
+            self._chneut,
+            self._dipdip,
+            self._gamma_ev,
+        ]
+
+    @property
+    def asr(self):
+        return self._asr.value
+
+    @property
+    def chneut(self):
+        return self._chneut.value
+
+    @property
+    def dipdip(self):
+        return self._dipdip.value
+
+    @property
+    def gamma_ev(self):
+        return self._gamma_ev.value
+
+
+class DataframeWidget(widgets.Output):
+    def update(self, title, data):
+        self.clear_output()
+        with self:
+            display(widgets.HTMLMath(value=f"<h2>{title}<h2>"))
+            display(data)
+
+
+class BECPanel(widgets.VBox):
+    def __init__(self, ddb):
+        super().__init__()
+
+        self.ddb = ddb
+
+        self._options = BECOptions()
+        self._button = widgets.Button(
+            description="Compute",
+            button_style="success",  # 'success', 'info', 'warning', 'danger' or ''
+            tooltip="Compute eps_infinity and Born effective charges from DDB.",
+        )
+        self._button.on_click(self.on_click)
+
+        self._out_1 = DataframeWidget()
+        self._out_2 = DataframeWidget()
+        self._out_3 = DataframeWidget()
+
+        self._input = InputWidget()
+
+        self.children = [
+            widgets.VBox([self._options, self._button]),
+            widgets.VBox(
+                [
+                    self._out_1,
+                    self._out_2,
+                    self._out_3,
+                    self._input,
+                ]
+            ),
+        ]
+
+    def update(self):
+        """Compute eps_infinity and Born effective charges from DDB."""
+        options = self._options
+
+        epsinf, becs = self.ddb.anaget_epsinf_and_becs(
+            chneut=options.chneut, mpi_procs=1, verbose=None
+        )
+
+        gen, inp = self.ddb.anaget_dielectric_tensor_generator(
+            asr=options.asr,
+            chneut=options.chneut,
+            dipdip=options.dipdip,
+            mpi_procs=1,
+            verbose=None,
+            return_input=True,
+        )
+
+        eps0 = gen.tensor_at_frequency(w=0, gamma_ev=options.gamma_ev)
+        self._out_1.update(
+            "$\epsilon^0$ in Cart. coords (computed with Gamma_eV):",
+            eps0.get_dataframe(cmode="real"),
+        )
+        self._out_2.update("$\epsilon^\infty$ in Cart. coords:", epsinf.get_dataframe())
+        self._out_3.update(
+            "Born effective charges in Cart. coords:", becs.get_voigt_dataframe()
+        )
+
+        self._input.update(inp)
+
+    def on_click(self, *args):
+
+        self._button.disabled = True
+        self.update()
+        self._button.disabled = False
+
+
+class Eps0Options(widgets.VBox):
+    def __init__(self):
+        super().__init__()
+
+        self._header = widgets.HTML("<h1>epsilon_0 options</h1>")
+
+        self._asr = widgets.Dropdown(
+            description="asr:",
+            options=["0", "1", "2"],
+            value="2",
+        )
+
+        self._chneut = widgets.Dropdown(
+            description="chneut:",
+            options=["0", "1", "2"],
+            value="1",
+        )
+
+        self._dipdip = widgets.Dropdown(
+            description="dipdip:",
+            options=["0", "1", "2"],
+            value="1",
+        )
+
+        # Phonon linewidth in eV
+        self._gamma_ev = widgets.BoundedFloatText(
+            description="gamma_ev:", value=1e-4, min=1e-20
+        )
+
+        # Frequency range (eV)
+        self._w_range = widgets.FloatRangeSlider(
+            description="w_range:",
+            value=[0.0, 0.1],
+            min=0.0,
+            max=1.0,
+            step=0.01,
+            readout_format=".2f",
+        )
+
+        self._units = widgets.Dropdown(
+            description="Energy units:",
+            options=["eV", "meV", "Ha", "cm-1", "Thz"],
+            value="eV",
+        )
+
+        self.children = [
+            self._header,
+            self._asr,
+            self._chneut,
+            self._dipdip,
+            self._gamma_ev,
+            self._w_range,
+            self._units,
+        ]
+
+    @property
+    def asr(self):
+        return self._asr.value
+
+    @property
+    def chneut(self):
+        return self._chneut.value
+
+    @property
+    def dipdip(self):
+        return self._dipdip.value
+
+    @property
+    def gamma_ev(self):
+        return self._gamma_ev.value
+
+    @property
+    def w_range(self):
+        return self._w_range.value
+
+    @property
+    def units(self):
+        return self._units.value
+
+
+class Eps0Panel(widgets.VBox):
+    def __init__(self, ddb):
+        super().__init__()
+
+        self.ddb = ddb
+
+        self._options = Eps0Options()
+        self._button = widgets.Button(
+            description="Plot eps0(omega)",
+            button_style="success",  # 'success', 'info', 'warning', 'danger' or ''
+        )
+        self._button.on_click(self.on_click)
+
+        self._plots = widgets.Output()
+        self._table = DataframeWidget()
+
+        self._input = InputWidget()
+
+        self.children = [
+            widgets.VBox([self._options, self._button]),
+            widgets.VBox([self._plots, self._table, self._input]),
+        ]
+
+    def update(self):
+        """Compute eps0(omega) from DDB and plot the results."""
+        options = self._options
+
+        gen, inp = self.ddb.anaget_dielectric_tensor_generator(
+            asr=options.asr,
+            chneut=options.chneut,
+            dipdip=options.dipdip,
+            mpi_procs=1,
+            verbose=None,
+            return_input=True,
+        )
+
+        ws = options.w_range
+        w_max = ws[1]
+        if w_max == 1.0:
+            w_max = None  # Will compute w_max in plot routine from ph freqs.
+
+        def p(component, reim):
+            fig = gen.plotly(
+                w_min=ws[0],
+                w_max=w_max,
+                gamma_ev=options.gamma_ev,
+                num=500,
+                component=component,
+                reim=reim,
+                units=options.units,
+                show=False,
+            )
+            return fig
+
+        # Add figures
+        # ca("## epsilon(w):")
+        self._plots.clear_output()
+        with self._plots:
+            display(widgets.HTML(value="<h2>epsilon(w)</h2>"))
+            p("diag", "re").show()
+            p("diag", "im").show()
+            p("offdiag", "re").show()
+            p("offdiag", "im").show()
+
+        self._table.update(
+            "Oscillator matrix element",
+            gen.get_oscillator_dataframe(reim="all", tol=1e-6),
+        )
+
+        # Add HTML pane with input.
+        self._input.update(inp)
+
+    def on_click(self, *args):
+
+        self._button.disabled = True
+        self.update()
+        self._button.disabled = False
+
+
+class VSoundOptions(widgets.VBox):
+    def __init__(self):
+        super().__init__()
+
+        self._header = widgets.HTML("<h1>Speed of sound options</h1>")
+
+        self._asr = widgets.Dropdown(
+            description="asr:",
+            options=["0", "1", "2"],
+            value="2",
+        )
+
+        self._chneut = widgets.Dropdown(
+            description="chneut:",
+            options=["0", "1", "2"],
+            value="1",
+        )
+
+        self._dipdip = widgets.Dropdown(
+            description="dipdip:",
+            options=["0", "1", "2"],
+            value="1",
+        )
+
+        self.children = [
+            self._header,
+            self._asr,
+            self._chneut,
+            self._dipdip,
+        ]
+
+    @property
+    def asr(self):
+        return self._asr.value
+
+    @property
+    def chneut(self):
+        return self._chneut.value
+
+    @property
+    def dipdip(self):
+        return self._dipdip.value
+
+
+class VSoundPanel(widgets.VBox):
+    def __init__(self, ddb):
+        super().__init__()
+
+        self.ddb = ddb
+
+        self._options = VSoundOptions()
+        self._button = widgets.Button(
+            description="Calculate speed of sound",
+            button_style="success",  # 'success', 'info', 'warning', 'danger' or ''
+        )
+        self._button.on_click(self.on_click)
+
+        self._plots = widgets.Output()
+        self._table = DataframeWidget()
+
+        self._input = InputWidget()
+
+        self.children = [
+            widgets.VBox([self._options, self._button]),
+            widgets.VBox([self._plots, self._table, self._input]),
+        ]
+
+    def update(self):
+        """Compute the speed of sound by fitting phonon frequencies
+        along selected directions by linear least-squares fit."""
+        from abipy.dfpt.vsound import SoundVelocity
+
+        options = self._options
+
+        sv = SoundVelocity.from_ddb(
+            self.ddb.filepath,
+            num_points=20,
+            qpt_norm=0.1,
+            ignore_neg_freqs=True,
+            asr=options.asr,
+            chneut=options.chneut,
+            dipdip=options.dipdip,
+            verbose=None,
+            mpi_procs=1,
+        )
+
+        with self._plots:
+            fig = sv.plotly(show=False)
+            fig.update_layout(title="Linear least-squares fit:")
+            fig.show()
+
+        self._table.update(
+            "Speed of sound computed along different q-directions in reduced coords",
+            sv.get_dataframe(),
+        )
+
+    def on_click(self, *args):
+
+        self._button.disabled = True
+        self.update()
+        self._button.disabled = False

@@ -1,3 +1,5 @@
 # abipy-panel
 
-WIP
+```bash
+voila examples/2_ddb_usage.ipynb
+```
